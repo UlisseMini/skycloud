@@ -4,22 +4,24 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/cheggaaa/pb"
 )
 
-const url = "https://skycloud.pro/media/UploadToServer.php?userid=USERID_HERE"
+const (
+	userid     = "" // USERID HERE
+	username   = "" // USERNAME HERE
+	postURL    = "https://skycloud.pro/media/UploadToServer.php?userid=" + userid
+	genfilekey = "https://my.skycloud.pro/MYCLOUD/generatefileKey.php?userid=" + userid + "&filename="
+)
 
 // multipart/form-data
-func upload(path string) error {
-	finfo, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
+func upload(path string, finfo os.FileInfo) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -47,7 +49,7 @@ func upload(path string) error {
 	defer bar.Finish()
 
 	// Now that you have a form, you can submit it to your handler.
-	req, err := http.NewRequest("POST", url, barReader)
+	req, err := http.NewRequest("POST", postURL, barReader)
 	if err != nil {
 		return err
 	}
@@ -60,21 +62,39 @@ func upload(path string) error {
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
 
-	_, err = io.Copy(os.Stdout, resp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stderr.Write(bytes.TrimSpace(b))
 	return err
 }
 
 func main() {
+	if userid == "" || username == "" {
+		panic("invalid constants, recompile source with valid constants")
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <file>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	if err := upload(os.Args[1]); err != nil {
+	finfo, err := os.Stat(os.Args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if err := upload(os.Args[1], finfo); err != nil {
 		fmt.Fprintf(os.Stderr, "Upload failed: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "\n\nUploaded: %s\n", os.Args[1])
+
+	url := fmt.Sprintf("https://media.skycloud.pro/%s%s/SKYCLOUD/Files/%s",
+		userid, username, url.QueryEscape(finfo.Name()))
+	fmt.Fprintf(os.Stderr, "\n\nUploaded: %s to %s\n", os.Args[1], url)
 }
