@@ -95,6 +95,6 @@ func main() {
 	}
 
 	url := fmt.Sprintf("https://media.skycloud.pro/%s%s/SKYCLOUD/Files/%s",
-		userid, username, url.QueryEscape(finfo.Name()))
+		userid, username, url.PathEscape(finfo.Name()))
 	fmt.Fprintf(os.Stderr, "\n\nUploaded: %s to %s\n", os.Args[1], url)
 }
